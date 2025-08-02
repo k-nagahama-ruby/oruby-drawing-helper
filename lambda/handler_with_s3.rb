@@ -8,7 +8,7 @@ require 'securerandom'
 
 # Lambda関数で使う定数
 # 実際の運用では環境変数から読み込みます
-BUCKET_NAME = ENV['BUCKET_NAME'] || 'orbie-helper-test-20250802'
+BUCKET_NAME = ENV['BUCKET_NAME'] || 'oruby-helper-test-20250802'
 
 def handler(event:, context:)
   puts "🚀 画像処理Lambda開始"
