@@ -1,0 +1,12 @@
+source 'https://rubygems.org'
+
+ruby '3.2.0'
+
+# 最初は S3 を操作するGemだけ
+gem 'aws-sdk-s3', '~> 1.140'
+
+# 開発時に便利なGem（Lambdaには含めない）
+group :development do
+  gem 'pry'      # デバッグ用
+  gem 'rubocop'  # コード品質チェック
+end
