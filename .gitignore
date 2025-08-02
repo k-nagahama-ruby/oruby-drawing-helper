@@ -1,0 +1,130 @@
+
+*.tfstate
+*.tfstate.*
+
+*.tfplan
+
+crash.log
+crash.*.log
+
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# Terraformのディレクトリ
+**/.terraform/*
+
+# Bundlerのローカル設定
+.bundle/
+vendor/bundle/
+
+# Rubyのバージョンマネージャー
+.ruby-version
+.ruby-gemset
+.rvmrc
+
+lambda_function.zip
+lambda_package/
+*.zip
+
+# テスト関連
+coverage/
+.rspec_status
+
+.aws/
+aws.conf
+*-accessKeys.csv
+*.pem
+
+# 環境変数ファイル
+.env
+.env.*
+.envrc
+
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA / RubyMine
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.\#*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# 環境変数
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# アップロードされたテスト画像
+test_images/
+sample_images/
+*.jpg
+*.jpeg
+*.png
+*.gif
+# ただし、ドキュメント用の画像は含める
+!docs/images/*
+
+# ローカルのメモやTODO
+personal_notes/
+TODO.md
+MEMO.md
+
+# バックアップファイル
+*.backup
+*.bak
+*.old
+
+# ログファイル
+*.log
+logs/
+
+# 一時ファイル
+*.tmp
+tmp/
+temp/
+
+# サンプル設定ファイル
+!.env.example
+!terraform.tfvars.example
+
+# ドキュメント
+!README.md
+!docs/**
+
+# GitHub Actions
+!.github/workflows/
