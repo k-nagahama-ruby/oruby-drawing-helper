@@ -1,10 +1,10 @@
 source 'https://rubygems.org'
 
-ruby '3.3.4'
+# ruby '3.2.0'  # Lambda runtime用
 
 gem 'aws-sdk-s3', '~> 1.140'
 gem 'aws-sdk-rekognition', '~> 1.90'
-gem 'concurrent-ruby', '~> 1.2'
+gem 'aws-sdk-bedrockruntime', '~> 1.5'
 
 group :development do
   gem 'pry'      # デバッグ用

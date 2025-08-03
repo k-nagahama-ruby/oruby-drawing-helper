@@ -18,7 +18,8 @@ resource "aws_lambda_function" "oruby_processor" {
   environment {
     variables = {
       BUCKET_NAME = aws_s3_bucket.first_bucket.id
-      MODEL_BUCKET_NAME = aws_s3_bucket.model_bucket.id  # 追加
+      MODEL_BUCKET_NAME = aws_s3_bucket.model_bucket.id
+      BEDROCK_MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0"
     }
   }
   

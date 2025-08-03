@@ -3,7 +3,6 @@ require 'base64'
 require 'aws-sdk-s3'
 require 'aws-sdk-rekognition'
 require 'securerandom'
-require 'concurrent'
 
 # AWSクライアント
 S3_CLIENT = Aws::S3::Client.new
@@ -21,23 +20,11 @@ def handler(event:, context:)
     body = parse_body(event) # JSONにする
     image_data = decode_image(body['image']) # binary_dataに変換
     
-    # 並列処理で効率化
-    futures = []
-    executor = Concurrent::FixedThreadPool.new(3)
-    
     # S3に画像を保存
-    s3_future = Concurrent::Promise.execute(executor: executor) do
-      upload_to_s3(image_data)
-    end
+    s3_key = upload_to_s3(image_data)
     
     # 統計モデルを取得
-    model_future = Concurrent::Promise.execute(executor: executor) do
-      get_golden_ratio_model
-    end
-    
-    # 結果を待機
-    s3_key = s3_future.value!
-    model_data = model_future.value!
+    model_data = get_golden_ratio_model
     
     # Rekognitionで画像分析
     rekognition_result = analyze_with_rekognition(BUCKET_NAME, s3_key)
@@ -72,8 +59,6 @@ def handler(event:, context:)
         message: e.message
       })
     }
-  ensure
-    executor&.shutdown
   end
 end
 
