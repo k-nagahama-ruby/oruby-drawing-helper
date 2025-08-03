@@ -17,9 +17,8 @@ resource "aws_iam_role_policy" "lambda_bedrock_policy" {
           "bedrock:InvokeModelWithResponseStream"
         ]
         Resource = [
-          # Claude 3 Sonnet モデルへのアクセス
-          "arn:aws:bedrock:${data.aws_region.current.name}::foundation-model/anthropic.claude-3-sonnet-*",
-          # Claude 3 Haiku（より高速・低コスト）も使用可能に
+          # Inference profiles へのアクセス
+          "arn:aws:bedrock:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
           "arn:aws:bedrock:${data.aws_region.current.name}::foundation-model/anthropic.claude-3-haiku-*"
         ]
       }
@@ -28,3 +27,4 @@ resource "aws_iam_role_policy" "lambda_bedrock_policy" {
 }
 
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}

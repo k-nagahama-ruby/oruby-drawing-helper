@@ -43,7 +43,28 @@ resource "aws_iam_role_policy" "lambda_rekognition_policy" {
   })
 }
 
+# Lambda用のモデルバケットアクセス権限
+resource "aws_iam_role_policy" "lambda_model_bucket_policy" {
+  name = "oruby-lambda-model-bucket-policy"
+  role = aws_iam_role.lambda_role.id
 
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.model_bucket.arn,
+          "${aws_s3_bucket.model_bucket.arn}/*"
+        ]
+      }
+    ]
+  })
+}
 
 # 出力
 output "model_bucket_name" {

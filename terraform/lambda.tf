@@ -19,7 +19,7 @@ resource "aws_lambda_function" "oruby_processor" {
     variables = {
       BUCKET_NAME = aws_s3_bucket.first_bucket.id
       MODEL_BUCKET_NAME = aws_s3_bucket.model_bucket.id
-      BEDROCK_MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0"
+      BEDROCK_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
     }
   }
   
@@ -30,8 +30,9 @@ resource "aws_lambda_function" "oruby_processor" {
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic,
     aws_iam_role_policy.lambda_s3_policy,
-    # aws_iam_role_policy.lambda_rekognition_policy,
-    # aws_iam_role_policy.lambda_model_bucket_policy
+    aws_iam_role_policy.lambda_rekognition_policy,
+    aws_iam_role_policy.lambda_model_bucket_policy,
+    aws_iam_role_policy.lambda_bedrock_policy
   ]
   
   tags = {
