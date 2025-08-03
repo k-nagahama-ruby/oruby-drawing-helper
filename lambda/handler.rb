@@ -16,6 +16,18 @@ BUCKET_NAME = ENV['BUCKET_NAME']
 MODEL_BUCKET_NAME = ENV['MODEL_BUCKET_NAME']
 BEDROCK_MODEL_ID = ENV['BEDROCK_MODEL_ID'] || 'anthropic.claude-3-sonnet-20240229-v1:0'
 
+# Helper method to extract JSON from Claude's response
+def extract_json_from_response(text)
+  # Claude may include explanation text before/after JSON
+  # Match the outermost JSON object
+  json_match = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/m)
+  if json_match
+    JSON.parse(json_match[0])
+  else
+    raise "No valid JSON found in response: #{text}"
+  end
+end
+
 def handler(event:, context:)
   puts "🎨 Oruby Drawing Helper with Bedrock - 処理開始"
   puts "使用モデル: #{BEDROCK_MODEL_ID}"
@@ -111,7 +123,8 @@ def run_evaluation_agent(rekognition_result, model_data, s3_url)
     )
     
     result = JSON.parse(response.body.read)
-    ai_response = JSON.parse(result['content'][0]['text'])
+    response_text = result['content'][0]['text']
+    ai_response = extract_json_from_response(response_text)
     
     puts "✅ 評価エージェント完了: スコア #{ai_response['score']}"
     
@@ -156,7 +169,8 @@ def run_advice_agent(rekognition_result, evaluation_result, model_data)
     )
     
     result = JSON.parse(response.body.read)
-    ai_response = JSON.parse(result['content'][0]['text'])
+    response_text = result['content'][0]['text']
+    ai_response = extract_json_from_response(response_text)
     
     puts "✅ アドバイスエージェント完了"
     
@@ -218,12 +232,34 @@ end
 
 # アドバイスエージェント用プロンプト構築
 def build_advice_prompt(rekognition_result, evaluation_result, model_data)
-  prompt = <<~PROMPT
-    画像分析結果: #{labels}
+  <<~PROMPT
+    あなたは「Oruby」の絵の上達をサポートする優しいアートコーチAIです。
     
-    0-100点で評価し、改善点を3つ挙げてください。
-    JSON形式で回答:
-    {"score": 数値, "advice": ["アドバイス1", "アドバイス2", "アドバイス3"]}
+    【現在の評価】
+    - 総合スコア: #{evaluation_result[:score]}点
+    - 評価: #{evaluation_result[:evaluation]}
+    - 詳細: #{evaluation_result[:breakdown].to_json}
+    
+    【検出された要素】
+    #{rekognition_result[:labels].first(10).map { |l| l[:name] }.join(", ")}
+    
+    この評価結果を踏まえて、絵を改善するための具体的なアドバイスを提供してください。
+    
+    必ず以下のJSON形式で回答してください：
+    {
+      "main_advice": "最も重要な改善ポイント（1-2文で簡潔に）",
+      "improvement_tips": [
+        "具体的な改善方法1",
+        "具体的な改善方法2",
+        "具体的な改善方法3"
+      ]
+    }
+    
+    アドバイスは：
+    - 具体的で実践しやすいものに
+    - ポジティブで励みになるトーンで
+    - 初心者でも理解できる言葉で
+    - Orubyらしさ（Ruby言語のマスコット）を意識して
   PROMPT
 end
 
