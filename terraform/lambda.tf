@@ -15,11 +15,10 @@ resource "aws_lambda_function" "oruby_processor" {
   memory_size     = 256  # MB (最小128、最大10240)
   timeout         = 30   # 秒 (最大900)
   
-  # 環境変数の設定
   environment {
     variables = {
       BUCKET_NAME = aws_s3_bucket.first_bucket.id
-      # 後で追加: BEDROCK_MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0"
+      MODEL_BUCKET_NAME = aws_s3_bucket.model_bucket.id  # 追加
     }
   }
   
@@ -29,7 +28,9 @@ resource "aws_lambda_function" "oruby_processor" {
   # Lambdaが作成される前にロールが必要
   depends_on = [
     aws_iam_role_policy_attachment.lambda_basic,
-    aws_iam_role_policy.lambda_s3_policy
+    aws_iam_role_policy.lambda_s3_policy,
+    # aws_iam_role_policy.lambda_rekognition_policy,
+    # aws_iam_role_policy.lambda_model_bucket_policy
   ]
   
   tags = {

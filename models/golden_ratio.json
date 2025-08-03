@@ -1,0 +1,124 @@
+{
+  "model_version": "1.0.0",
+  "model_name": "Oruby Golden Ratio Model",
+  "description": "Orubyの絵を評価するための統計モデル",
+  "updated_at": "2025-01-02",
+  
+  "composition": {
+    "description": "構図のバランス",
+    "ideal_ratios": {
+      "character_area": {
+        "min": 0.3,
+        "max": 0.6,
+        "ideal": 0.45,
+        "weight": 0.3,
+        "description": "画像全体に対するキャラクターの占める割合"
+      },
+      "face_to_body": {
+        "min": 0.25,
+        "max": 0.4,
+        "ideal": 0.33,
+        "weight": 0.2,
+        "description": "体に対する顔の大きさの比率"
+      },
+      "center_alignment": {
+        "tolerance": 0.2,
+        "weight": 0.15,
+        "description": "キャラクターが中央に配置されているか"
+      }
+    }
+  },
+  
+  "colors": {
+    "description": "色使いの評価基準",
+    "preferred_palette": {
+      "primary_colors": ["#FFD700", "#FF6B6B", "#4ECDC4", "#FFA500"],
+      "background_colors": ["#F0F8FF", "#FFF5EE", "#F5F5DC"],
+      "accent_colors": ["#FF1493", "#9370DB", "#20B2AA"]
+    },
+    "metrics": {
+      "color_variety": {
+        "min": 3,
+        "max": 7,
+        "ideal": 5,
+        "weight": 0.2,
+        "description": "使用される色の数"
+      },
+      "saturation": {
+        "min": 0.4,
+        "max": 0.8,
+        "ideal": 0.6,
+        "weight": 0.15,
+        "description": "色の鮮やかさ"
+      },
+      "warm_cool_balance": {
+        "min": 0.4,
+        "max": 0.7,
+        "ideal": 0.55,
+        "weight": 0.1,
+        "description": "暖色系の割合"
+      }
+    }
+  },
+  
+  "style_features": {
+    "description": "Oruby特有のスタイル要素",
+    "required_elements": {
+      "round_shapes": {
+        "importance": 0.8,
+        "description": "丸みを帯びた形状の使用"
+      },
+      "smile_presence": {
+        "importance": 0.9,
+        "description": "笑顔の表現"
+      },
+      "ruby_gem_motif": {
+        "importance": 0.6,
+        "description": "ルビー（宝石）モチーフの使用"
+      },
+      "playful_elements": {
+        "importance": 0.7,
+        "description": "遊び心のある要素"
+      }
+    }
+  },
+  
+  "technical_quality": {
+    "description": "技術的な品質指標",
+    "line_quality": {
+      "smoothness": {
+        "min": 0.6,
+        "ideal": 0.8,
+        "weight": 0.1
+      },
+      "consistency": {
+        "min": 0.5,
+        "ideal": 0.75,
+        "weight": 0.1
+      }
+    },
+    "detail_level": {
+      "min": 0.3,
+      "max": 0.7,
+      "ideal": 0.5,
+      "weight": 0.1,
+      "description": "適度な詳細度（シンプルすぎず複雑すぎず）"
+    }
+  },
+  
+  "scoring": {
+    "description": "スコアリングの重み付け",
+    "weights": {
+      "composition": 0.3,
+      "colors": 0.25,
+      "style_features": 0.35,
+      "technical_quality": 0.1
+    },
+    "score_ranges": {
+      "excellent": { "min": 85, "label": "素晴らしい！" },
+      "good": { "min": 70, "max": 84, "label": "良い感じ！" },
+      "fair": { "min": 50, "max": 69, "label": "もう少し！" },
+      "needs_improvement": { "max": 49, "label": "練習あるのみ！" }
+    }
+  }
+}

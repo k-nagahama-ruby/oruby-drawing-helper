@@ -14,7 +14,7 @@ provider "aws" {
 
 resource "aws_s3_bucket" "first_bucket" {
 
-  bucket = "oruby-helper-test-${formatdate("YYYYMMDD", timestamp())}"
+  bucket = "oruby-helper-test-${formatdate("YYYYMMDD-HHmmss", timestamp())}"
 
   tags = {
     Name        = "Oruby Helper Test Bucket"

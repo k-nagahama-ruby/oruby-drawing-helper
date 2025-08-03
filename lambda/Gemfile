@@ -2,10 +2,10 @@ source 'https://rubygems.org'
 
 ruby '3.3.4'
 
-# 最初は S3 を操作するGemだけ
 gem 'aws-sdk-s3', '~> 1.140'
+gem 'aws-sdk-rekognition', '~> 1.90'
+gem 'concurrent-ruby', '~> 1.2'
 
-# 開発時に便利なGem（Lambdaには含めない）
 group :development do
   gem 'pry'      # デバッグ用
   gem 'rubocop'  # コード品質チェック
