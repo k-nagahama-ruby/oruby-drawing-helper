@@ -14,12 +14,17 @@ provider "aws" {
 
 resource "aws_s3_bucket" "first_bucket" {
 
-  bucket = "oruby-helper-test-${formatdate("YYYYMMDD-HHmmss", timestamp())}"
+  bucket = "oruby-helper-test-bucket-prod"
 
   tags = {
     Name        = "Oruby Helper Test Bucket"
     Environment = "development"
     Purpose     = "Learning Terraform"
+  }
+
+  lifecycle {
+    prevent_destroy = false
+    create_before_destroy = false
   }
 }
 

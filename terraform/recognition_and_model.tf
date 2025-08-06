@@ -3,12 +3,17 @@
 
 # 統計モデル保存用のS3バケット
 resource "aws_s3_bucket" "model_bucket" {
-  bucket = "oruby-models-${formatdate("YYYYMMDD-HHmmss", timestamp())}"
+  bucket = "oruby-models-bucket-prod"
   
   tags = {
     Name        = "Oruby Statistical Models"
     Environment = "development"
     Purpose     = "Golden Ratio Models Storage"
+  }
+
+  lifecycle {
+    prevent_destroy = false
+    create_before_destroy = false
   }
 }
 
