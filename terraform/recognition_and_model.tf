@@ -4,6 +4,7 @@
 # 統計モデル保存用のS3バケット
 resource "aws_s3_bucket" "model_bucket" {
   bucket = "oruby-models-bucket-prod"
+  force_destroy = true
   
   tags = {
     Name        = "Oruby Statistical Models"
