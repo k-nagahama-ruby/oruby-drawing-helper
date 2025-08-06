@@ -116,11 +116,10 @@ def calculate_score(rekognition_result, model_data)
     completeness: calculate_completeness_score(rekognition_result)
   }
   
-  # 重み付け
   weights = {
-    'composition' => 0.4,   # 構図 40%
-    'complexity' => 0.2,    # 複雑さ 20%
-    'completeness' => 0.4   # 完成度 40%
+    'composition' => 0.3,
+    'complexity' => 0.2,     # 10%→20%（バランスを取る）
+    'completeness' => 0.5    # 60%→50%
   }
   
   # 基本スコア計算
@@ -128,9 +127,21 @@ def calculate_score(rekognition_result, model_data)
     score * weights[category.to_s]
   }.round
   
-  # Oruby特徴ボーナスを加算（最大+20点、最小-20点）
-  total_score = [base_score + oruby_bonus, 100].min
-  total_score = [total_score, 10].max  # 最低10点
+  # Oruby特徴ボーナスを加算（影響を抑える）
+  total_score = base_score + (oruby_bonus * 0.7).round  # ボーナスの影響を70%に
+  
+  # 範囲制限
+  total_score = [[total_score, 100].min, 10].max
+
+  # 平均60点になるように全体調整
+  # 基準点60からの偏差を計算
+  if total_score > 60
+    # 60点以上は上昇を緩やかに
+    total_score = 60 + ((total_score - 60) * 0.8).round
+  else
+    # 60点以下は下降を緩やかに
+    total_score = 60 - ((60 - total_score) * 0.8).round
+  end
   
   {
     total_score: total_score,
@@ -140,138 +151,154 @@ def calculate_score(rekognition_result, model_data)
   }
 end
 
-# Orubyの特徴をチェック
 def check_oruby_features(rekognition_result)
   labels = rekognition_result[:labels]
   
   {
-    has_bird: labels.any? { |l| l[:name].match?(/bird|beak|wing|feather|avian/i) },
-    has_gem: labels.any? { |l| l[:name].match?(/gem|jewel|jewelry|crystal|stone|ornament|accessory/i) },
-    is_cute: labels.any? { |l| l[:name].match?(/cute|adorable|cartoon|toy|plush|kawaii/i) },
-    bird_confidence: labels.select { |l| l[:name].match?(/bird/i) }.map { |l| l[:confidence] }.max || 0
+    # Drawing/Sketch/Artも含めて判定
+    has_bird: labels.any? { |l| 
+      l[:name].match?(/bird|beak|wing|feather|avian|animal|character|mascot/i) ||
+      (l[:name].match?(/drawing|sketch|illustration|art/i) && labels.size > 3)
+    },
+    # Shapeも含めて判定
+    has_gem: labels.any? { |l| 
+      l[:name].match?(/gem|jewel|jewelry|crystal|stone|ornament|accessory|diamond|shape|triangle/i)
+    },
+    # DrawingやArtも可愛さとして判定
+    is_cute: labels.any? { |l| 
+      l[:name].match?(/cute|adorable|cartoon|toy|plush|kawaii|drawing|sketch|doodle|simple/i)
+    },
+    bird_confidence: labels.select { |l| l[:name].match?(/bird|animal/i) }.map { |l| l[:confidence] }.max || 75
   }
 end
 
-# Oruby特徴によるボーナス/ペナルティ
 def calculate_oruby_features_bonus(rekognition_result)
   features = check_oruby_features(rekognition_result)
+  labels = rekognition_result[:labels]
   bonus = 0
   
-  # 鳥要素（最重要）
-  if features[:has_bird]
-    bonus += 10
-    # 高信頼度なら追加ボーナス
-    bonus += 5 if features[:bird_confidence] > 85
-  else
-    bonus -= 15  # 鳥として認識されないのは大幅減点
+  # 線画として認識されていれば基礎点（控えめ）
+  if labels.any? { |l| l[:name].match?(/drawing|sketch|illustration|art|doodle/i) }
+    bonus += 5  # 15→5
   end
   
-  # 宝石要素（特徴的）
-  if features[:has_gem]
-    bonus += 8
+  # 鳥要素（必須に近い）
+  if features[:has_bird]
+    bonus += 5  # 10→5
+  elsif labels.any? { |l| l[:name].match?(/animal|character|mascot/i) }
+    bonus += 2  # 5→2
+  else
+    bonus -= 10  # 鳥として認識されないと減点
+  end
+  
+  # 宝石要素（重要）
+  if features[:has_gem] || labels.any? { |l| l[:name].match?(/shape|geometric/i) }
+    bonus += 3  # 5→3
   else
     bonus -= 5  # 宝石がないと減点
   end
   
-  # 可愛さ要素
-  if features[:is_cute]
-    bonus += 5
-  else
-    bonus -= 2  # 可愛くないと少し減点
-  end
+  # シンプルさは加点しない（基準に含まれる）
   
   bonus
 end
 
-# 構図スコア（シンプル版）
 def calculate_composition_score(rekognition_result, model_data)
   labels = rekognition_result[:labels]
   
   # 主要な要素が明確に認識されているか
-  main_subject = labels.select { |l| l[:confidence] > 80 }.first(3)
+  main_subject = labels.select { |l| l[:confidence] > 75 }.first(3)
   
   if main_subject.any?
-    # 主題の明確さでスコア決定
+    # 主題の明確さでスコア決定（厳しく）
     avg_confidence = main_subject.map { |l| l[:confidence] }.sum / main_subject.size.to_f
-    base_score = (avg_confidence * 0.8).round
+    base_score = ((avg_confidence - 50) * 1.2).round  # 基準を厳しく
     
-    # 中央に配置されているか（Birdラベルがある場合）
-    if labels.any? { |l| l[:name].match?(/bird/i) && l[:confidence] > 70 }
-      base_score += 10
+    # 中央配置ボーナス（控えめ）
+    if labels.any? { |l| l[:name].match?(/bird|animal|character/i) && l[:confidence] > 70 }
+      base_score += 5  # 10→5
     end
     
-    [base_score, 100].min
+    [base_score, 85].min  # 最大85点
   else
-    40  # 主題が不明確
+    30  # 40→30（主題が不明確）
   end
 end
 
-# 複雑さスコア（シンプル版）
 def calculate_complexity_score(rekognition_result)
   labels = rekognition_result[:labels]
   label_count = labels.count
   
-  # ラベル数ベースの評価
+  # 線画用の基礎点を下げる
+  base_score = if labels.any? { |l| l[:name].match?(/drawing|sketch|illustration|doodle/i) }
+    30  # 60→30
+  else
+    0
+  end
+  
+  # ラベル数による加点（厳しく）
   case label_count
   when 0..2
-    20   # シンプルすぎる
+    base_score + 10  # 最低限
   when 3..5
-    40   # 基本的
+    base_score + 20  # 基本的
   when 6..9
-    60   # 適度な複雑さ
+    base_score + 30  # 適切
   when 10..15
-    80   # 豊富な要素
+    base_score + 25  # やや多い
   else
-    90   # 非常に複雑
+    base_score + 20  # 多すぎ
   end
 end
 
-# 完成度スコア（シンプル版）
 def calculate_completeness_score(rekognition_result)
   labels = rekognition_result[:labels]
   
-  # 高信頼度ラベルの数と割合
-  high_confidence_count = labels.count { |l| l[:confidence] > 85 }
+  # 基本スコアを下げる
+  score = 40  # 60→40
+  
+  # 線画として認識されたら少し加点
+  if labels.any? { |l| l[:name].match?(/drawing|illustration|art|sketch|doodle/i) }
+    score += 10  # 20→10
+  end
+  
+  # 高信頼度ラベルによる加点（厳しく）
+  high_confidence_count = labels.count { |l| l[:confidence] > 80 }  # 75→80
   very_high_confidence_count = labels.count { |l| l[:confidence] > 90 }
   
-  # 基本スコア
-  score = 40
-  
-  # 高信頼度ラベルによる加点
-  score += high_confidence_count * 5
-  score += very_high_confidence_count * 3  # 追加ボーナス
-  
-  # アート作品として認識
-  if labels.any? { |l| l[:name].match?(/drawing|illustration|art|sketch/i) }
-    score += 10
-  end
+  score += high_confidence_count * 2  # 3→2
+  score += very_high_confidence_count * 2  # 追加ボーナス
   
   # 平均信頼度による調整
   if labels.any?
     avg_confidence = labels.map { |l| l[:confidence] }.sum / labels.size.to_f
-    if avg_confidence > 80
+    if avg_confidence > 85  # 70→85（厳しく）
       score += 10
-    elsif avg_confidence < 60
-      score -= 10
+    elsif avg_confidence < 70
+      score -= 5
     end
   end
   
-  [[score, 20].max, 95].min
+  [[score, 20].max, 90].min  # 最大値も90に制限
 end
 
 # スコアレンジ判定（Oruby版）
 def determine_score_range(score, model_data)
   case score
-  when 85..100
-    { 'label' => '素晴らしいOruby！プロ級の作品です！' }
-  when 70..84
-    { 'label' => '良いOruby！特徴がよく表現されています' }
-  when 50..69
-    { 'label' => 'まずまずのOruby。もう少し特徴を強調しましょう' }
-  when 30..49
-    { 'label' => 'Orubyの特徴が不足しています。基本を確認しましょう' }
+  when 90..100
+    { 'label' => '完璧なOruby！理想的な作品です！' }
+  when 80..89
+    { 'label' => '素晴らしいOruby！プロ級の仕上がりです' }
+  when 70..79
+    { 'label' => '良いOruby！必須要素が揃っています' }
+  when 60..69
+    { 'label' => 'まずまずのOruby。もう少し丁寧に' }
+  when 50..59
+    { 'label' => 'Orubyの特徴が不足。基本を確認しましょう' }
+  when 40..49
+    { 'label' => '要改善。必須要素を意識して描きましょう' }
   else
-    { 'label' => 'Orubyらしさが足りません。鳥と宝石を意識して！' }
+    { 'label' => '基礎から練習しましょう。お手本を参考に！' }
   end
 end
 
@@ -384,37 +411,37 @@ def build_evaluation_prompt(rekognition_result, model_data)
   complete_score = calculate_completeness_score(rekognition_result)
   oruby_bonus = calculate_oruby_features_bonus(rekognition_result)
   
-  <<~PROMPT
+ <<~PROMPT
     「Oruby（おるびー）」の絵を評価してください。
     Orubyは宝石（ルビー）を尻尾につけた可愛い鳥のキャラクターです。
     
+    【重要な評価方針】
+    - これは白黒の線画作品です
+    - 厳格な評価基準を適用してください
+    - 必須要素：くちばし、丸い体、ダイヤモンド型の装飾
+    
     【検出された要素】
     #{labels.first(5).map { |l| "#{l[:name]}(#{l[:confidence].round}%)" }.join(", ")}
-    要素数: #{label_count}
-    
-    【Oruby必須要素チェック】
-    - 鳥として認識: #{features[:has_bird] ? "○ あり" : "✗ なし（大幅減点）"}
-    - 宝石要素: #{features[:has_gem] ? "○ あり" : "△ なし（減点）"}
-    - 可愛さ: #{features[:is_cute] ? "○ あり" : "△ なし"}
     
     【評価配分】
-    1. 構図（40%）: キャラクターの配置、明確さ
-    2. 複雑さ（20%）: 適度な描き込み（要素数#{label_count}個）
-    3. 完成度（40%）: しっかり描かれているか
+    1. 構図（30%）: 中央配置、バランス
+    2. 必須要素（40%）: くちばし、体、宝石の明確な表現
+    3. 完成度（30%）: 全体的なまとまりと仕上がり
     
-    【参考スコア】
-    - 構図: #{comp_score}点
-    - 複雑さ: #{complex_score}点
-    - 完成度: #{complete_score}点
-    - Oruby特徴: #{oruby_bonus > 0 ? "+#{oruby_bonus}" : oruby_bonus}点
+    【採点基準（厳格）】
+    - 平均60点を基準とする
+    - 70点以上：必須要素がすべて明確に表現されている
+    - 80点以上：構図・バランスも優れている
+    - 90点以上：ほぼ完璧な作品
+    - 100点：理想的な見本レベルのみ
     
-    【重要】
-    - 鳥として認識されない場合は最高60点
-    - 宝石要素がない場合は最高80点
-    - 平均50点、85点以上は本当に優れた作品のみ
+    【減点要素】
+    - 必須要素の欠如：各-15点
+    - バランスの悪さ：-10点
+    - 不明瞭な表現：-10点
     
     JSON形式のみで回答：
-    {"score": 総合点, "evaluation": "Orubyらしさを含めた評価コメント", "breakdown": {"composition": 点, "complexity": 点, "completeness": 点}}
+    {"score": 総合点, "evaluation": "評価コメント", "breakdown": {"composition": 点, "essential_features": 点, "completeness": 点}}
   PROMPT
 end
 
