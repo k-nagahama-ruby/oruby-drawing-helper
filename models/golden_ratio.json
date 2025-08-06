@@ -1,124 +1,238 @@
 {
-  "model_version": "1.0.0",
-  "model_name": "Oruby Golden Ratio Model",
-  "description": "Orubyの絵を評価するための統計モデル",
-  "updated_at": "2025-01-02",
+  "model_version": "2.1.0",
+  "model_name": "Oruby Golden Ratio Model - Monochrome",
+  "description": "白黒のOruby（おるびー）の絵を評価するための統計モデル",
+  "updated_at": "2025-01-15",
   
   "composition": {
     "description": "構図のバランス",
     "ideal_ratios": {
       "character_area": {
-        "min": 0.3,
+        "min": 0.4,
         "max": 0.6,
-        "ideal": 0.45,
+        "ideal": 0.5,
         "weight": 0.3,
-        "description": "画像全体に対するキャラクターの占める割合"
+        "description": "画像全体に対するキャラクターの占める割合（中央配置）"
       },
-      "face_to_body": {
-        "min": 0.25,
-        "max": 0.4,
-        "ideal": 0.33,
+      "beak_to_body": {
+        "min": 0.2,
+        "max": 0.35,
+        "ideal": 0.28,
+        "weight": 0.25,
+        "description": "体に対するくちばしの長さの比率"
+      },
+      "body_roundness": {
+        "min": 0.7,
+        "max": 0.95,
+        "ideal": 0.85,
+        "weight": 0.25,
+        "description": "体の丸みの度合い（楕円形度）"
+      },
+      "vertical_balance": {
+        "min": 0.45,
+        "max": 0.55,
+        "ideal": 0.5,
         "weight": 0.2,
-        "description": "体に対する顔の大きさの比率"
-      },
-      "center_alignment": {
-        "tolerance": 0.2,
-        "weight": 0.15,
-        "description": "キャラクターが中央に配置されているか"
+        "description": "重心の縦方向バランス（0.5が中央）"
       }
     }
   },
   
-  "colors": {
-    "description": "色使いの評価基準",
-    "preferred_palette": {
-      "primary_colors": ["#FFD700", "#FF6B6B", "#4ECDC4", "#FFA500"],
-      "background_colors": ["#F0F8FF", "#FFF5EE", "#F5F5DC"],
-      "accent_colors": ["#FF1493", "#9370DB", "#20B2AA"]
-    },
-    "metrics": {
-      "color_variety": {
-        "min": 3,
-        "max": 7,
-        "ideal": 5,
-        "weight": 0.2,
-        "description": "使用される色の数"
-      },
-      "saturation": {
-        "min": 0.4,
-        "max": 0.8,
-        "ideal": 0.6,
-        "weight": 0.15,
-        "description": "色の鮮やかさ"
-      },
-      "warm_cool_balance": {
-        "min": 0.4,
-        "max": 0.7,
-        "ideal": 0.55,
-        "weight": 0.1,
-        "description": "暖色系の割合"
-      }
-    }
-  },
-  
-  "style_features": {
-    "description": "Oruby特有のスタイル要素",
+  "essential_features": {
+    "description": "Oruby必須要素",
     "required_elements": {
-      "round_shapes": {
-        "importance": 0.8,
-        "description": "丸みを帯びた形状の使用"
+      "beak_presence": {
+        "importance": 1.0,
+        "shape": "triangular",
+        "description": "三角形の大きなくちばしの存在"
       },
-      "smile_presence": {
+      "ruby_gem": {
+        "importance": 0.95,
+        "position": "body_side",
+        "shape": "diamond",
+        "description": "ダイヤモンド型のルビー（宝石）"
+      },
+      "round_body": {
         "importance": 0.9,
-        "description": "笑顔の表現"
+        "description": "丸みを帯びた楕円形の体"
       },
-      "ruby_gem_motif": {
-        "importance": 0.6,
-        "description": "ルビー（宝石）モチーフの使用"
+      "single_eye": {
+        "importance": 0.85,
+        "style": "circular_with_pupil",
+        "description": "丸い目と瞳の表現"
       },
-      "playful_elements": {
+      "feet": {
         "importance": 0.7,
-        "description": "遊び心のある要素"
+        "count": 2,
+        "style": "simple_lines",
+        "description": "シンプルな2本の足"
+      },
+      "head_decoration": {
+        "importance": 0.6,
+        "style": "short_lines",
+        "count": "2-4",
+        "description": "頭頂部の短い線（毛のような装飾）"
       }
     }
   },
   
-  "technical_quality": {
-    "description": "技術的な品質指標",
-    "line_quality": {
-      "smoothness": {
-        "min": 0.6,
-        "ideal": 0.8,
-        "weight": 0.1
+  "completeness": {
+    "description": "絵としての完成度",
+    "metrics": {
+      "all_parts_present": {
+        "min": 0.8,
+        "max": 1.0,
+        "ideal": 1.0,
+        "weight": 0.35,
+        "description": "必要なパーツがすべて描かれているか"
       },
-      "consistency": {
-        "min": 0.5,
-        "ideal": 0.75,
-        "weight": 0.1
+      "part_integration": {
+        "min": 0.7,
+        "max": 1.0,
+        "ideal": 0.9,
+        "weight": 0.25,
+        "description": "各パーツが自然に繋がっているか"
+      },
+      "recognizability": {
+        "min": 0.8,
+        "max": 1.0,
+        "ideal": 0.95,
+        "weight": 0.25,
+        "description": "おるびーとして認識できるか"
+      },
+      "finishing_level": {
+        "min": 0.6,
+        "max": 1.0,
+        "ideal": 0.85,
+        "weight": 0.15,
+        "description": "全体的な仕上がり具合（未完成感がないか）"
       }
     },
-    "detail_level": {
-      "min": 0.3,
-      "max": 0.7,
-      "ideal": 0.5,
-      "weight": 0.1,
-      "description": "適度な詳細度（シンプルすぎず複雑すぎず）"
+    "checklist": {
+      "core_elements": [
+        "くちばしが完全に描かれている",
+        "体の輪郭が閉じている",
+        "ルビー（宝石）が明確に描かれている",
+        "目がはっきりと描かれている"
+      ],
+      "additional_elements": [
+        "足が2本描かれている",
+        "頭の装飾がある",
+        "全体的なバランスが取れている"
+      ]
+    }
+  },
+  
+  "proportions": {
+    "description": "各パーツの比率",
+    "measurements": {
+      "beak_length": {
+        "ratio_to_body_width": 0.4,
+        "tolerance": 0.1,
+        "weight": 0.3
+      },
+      "eye_size": {
+        "ratio_to_head": 0.2,
+        "tolerance": 0.05,
+        "weight": 0.2
+      },
+      "gem_size": {
+        "ratio_to_body": 0.15,
+        "tolerance": 0.05,
+        "weight": 0.25
+      },
+      "feet_length": {
+        "ratio_to_body_height": 0.15,
+        "tolerance": 0.05,
+        "weight": 0.15
+      },
+      "body_aspect_ratio": {
+        "width_to_height": 0.8,
+        "tolerance": 0.15,
+        "weight": 0.1
+      }
+    }
+  },
+  
+  "negative_space": {
+    "description": "余白の使い方",
+    "metrics": {
+      "surrounding_space": {
+        "min": 0.4,
+        "max": 0.6,
+        "ideal": 0.5,
+        "weight": 0.4,
+        "description": "キャラクター周囲の余白"
+      },
+      "balance": {
+        "horizontal": 0.5,
+        "vertical": 0.5,
+        "tolerance": 0.1,
+        "weight": 0.6,
+        "description": "余白の均等性"
+      }
     }
   },
   
   "scoring": {
     "description": "スコアリングの重み付け",
     "weights": {
-      "composition": 0.3,
-      "colors": 0.25,
-      "style_features": 0.35,
-      "technical_quality": 0.1
+      "composition": 0.25,
+      "essential_features": 0.3,
+      "completeness": 0.3,
+      "proportions": 0.1,
+      "negative_space": 0.05
     },
     "score_ranges": {
-      "excellent": { "min": 85, "label": "素晴らしい！" },
-      "good": { "min": 70, "max": 84, "label": "良い感じ！" },
-      "fair": { "min": 50, "max": 69, "label": "もう少し！" },
-      "needs_improvement": { "max": 49, "label": "練習あるのみ！" }
+      "excellent": { 
+        "min": 85, 
+        "label": "完璧なおるびー！",
+        "feedback": "すべての要素が理想的にバランスされています"
+      },
+      "good": { 
+        "min": 70, 
+        "max": 84, 
+        "label": "素晴らしいおるびー！",
+        "feedback": "主要な特徴がよく表現されています"
+      },
+      "fair": { 
+        "min": 50, 
+        "max": 69, 
+        "label": "いい感じのおるびー！",
+        "feedback": "基本的な要素は揃っています"
+      },
+      "needs_improvement": { 
+        "max": 49, 
+        "label": "もう少し練習！",
+        "feedback": "重要な要素を追加してみましょう"
+      }
+    }
+  },
+  
+  "evaluation_notes": {
+    "drawing_tool_friendly": {
+      "description": "ボールペンなど様々な画材に対応",
+      "no_line_quality_penalty": "線の太さや質感は評価対象外",
+      "focus_on_content": "描かれている内容と完成度を重視",
+      "tool_agnostic": "使用画材による減点なし"
+    },
+    "essential_check": {
+      "must_have": [
+        "くちばし（三角形）",
+        "丸い体",
+        "ダイヤモンド型の宝石",
+        "少なくとも1つの目"
+      ],
+      "nice_to_have": [
+        "足（2本）",
+        "頭の装飾（短い線）",
+        "適切な余白"
+      ]
+    },
+    "completeness_priority": {
+      "high": "すべての必須パーツが描かれていること",
+      "medium": "パーツ同士が繋がっていること",
+      "low": "細部の仕上げ"
     }
   }
 }
