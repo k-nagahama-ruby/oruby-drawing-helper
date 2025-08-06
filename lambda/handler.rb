@@ -1,4 +1,3 @@
-
 require 'json'
 require 'base64'
 require 'aws-sdk-s3'
@@ -14,7 +13,7 @@ BEDROCK_CLIENT = Aws::BedrockRuntime::Client.new(region: 'ap-northeast-1')
 # 環境変数
 BUCKET_NAME = ENV['BUCKET_NAME']
 MODEL_BUCKET_NAME = ENV['MODEL_BUCKET_NAME']
-BEDROCK_MODEL_ID = ENV['BEDROCK_MODEL_ID'] || 'anthropic.claude-3-sonnet-20240229-v1:0'
+BEDROCK_MODEL_ID = ENV['BEDROCK_MODEL_ID'] || 'anthropic.claude-3-haiku-20240307-v1:0'
 
 # Helper method to extract JSON from Claude's response
 def extract_json_from_response(text)
@@ -47,6 +46,9 @@ def handler(event:, context:)
     # Rekognitionで画像分析
     rekognition_result = analyze_with_rekognition(BUCKET_NAME, s3_key)
     
+    # Oruby特化のスコア計算
+    score_result = calculate_score(rekognition_result, model_data)
+    
     # Bedrockエージェントによる高度な分析
     puts "🤖 Bedrockエージェントによる分析開始..."
     
@@ -54,7 +56,8 @@ def handler(event:, context:)
     evaluation_result = run_evaluation_agent(
       rekognition_result, 
       model_data,
-      s3_url
+      s3_url,
+      score_result  # 事前計算スコアを渡す
     )
     
     # エージェント2: アドバイスエージェント
@@ -76,6 +79,7 @@ def handler(event:, context:)
         rekognition_labels: rekognition_result[:labels].first(5),
         ai_advice: advice_result[:advice],
         improvement_tips: advice_result[:tips],
+        oruby_features: score_result[:oruby_features],  # Oruby特徴の判定結果
         timestamp: Time.now.iso8601
       })
     }
@@ -83,7 +87,7 @@ def handler(event:, context:)
   rescue Aws::BedrockRuntime::Errors::ServiceError => e
     puts "❌ Bedrockエラー: #{e.message}"
     # Bedrockエラー時は従来の分析にフォールバック
-    fallback_to_basic_analysis(e.message)
+    fallback_to_basic_analysis(e.message, rekognition_result, model_data)
   rescue => e
     puts "❌ エラー発生: #{e.message}"
     puts e.backtrace.first(5)
@@ -99,8 +103,180 @@ def handler(event:, context:)
   end
 end
 
+# Oruby特化のスコア計算
+def calculate_score(rekognition_result, model_data)
+  puts "🎯 Orubyスコアを計算中..."
+  
+  # Orubyの必須要素をチェック
+  oruby_bonus = calculate_oruby_features_bonus(rekognition_result)
+  
+  scores = {
+    composition: calculate_composition_score(rekognition_result, model_data),
+    complexity: calculate_complexity_score(rekognition_result),
+    completeness: calculate_completeness_score(rekognition_result)
+  }
+  
+  # 重み付け
+  weights = {
+    'composition' => 0.4,   # 構図 40%
+    'complexity' => 0.2,    # 複雑さ 20%
+    'completeness' => 0.4   # 完成度 40%
+  }
+  
+  # 基本スコア計算
+  base_score = scores.sum { |category, score|
+    score * weights[category.to_s]
+  }.round
+  
+  # Oruby特徴ボーナスを加算（最大+20点、最小-20点）
+  total_score = [base_score + oruby_bonus, 100].min
+  total_score = [total_score, 10].max  # 最低10点
+  
+  {
+    total_score: total_score,
+    details: scores.merge(oruby_bonus: oruby_bonus),
+    score_range: determine_score_range(total_score, model_data),
+    oruby_features: check_oruby_features(rekognition_result)
+  }
+end
+
+# Orubyの特徴をチェック
+def check_oruby_features(rekognition_result)
+  labels = rekognition_result[:labels]
+  
+  {
+    has_bird: labels.any? { |l| l[:name].match?(/bird|beak|wing|feather|avian/i) },
+    has_gem: labels.any? { |l| l[:name].match?(/gem|jewel|jewelry|crystal|stone|ornament|accessory/i) },
+    is_cute: labels.any? { |l| l[:name].match?(/cute|adorable|cartoon|toy|plush|kawaii/i) },
+    bird_confidence: labels.select { |l| l[:name].match?(/bird/i) }.map { |l| l[:confidence] }.max || 0
+  }
+end
+
+# Oruby特徴によるボーナス/ペナルティ
+def calculate_oruby_features_bonus(rekognition_result)
+  features = check_oruby_features(rekognition_result)
+  bonus = 0
+  
+  # 鳥要素（最重要）
+  if features[:has_bird]
+    bonus += 10
+    # 高信頼度なら追加ボーナス
+    bonus += 5 if features[:bird_confidence] > 85
+  else
+    bonus -= 15  # 鳥として認識されないのは大幅減点
+  end
+  
+  # 宝石要素（特徴的）
+  if features[:has_gem]
+    bonus += 8
+  else
+    bonus -= 5  # 宝石がないと減点
+  end
+  
+  # 可愛さ要素
+  if features[:is_cute]
+    bonus += 5
+  else
+    bonus -= 2  # 可愛くないと少し減点
+  end
+  
+  bonus
+end
+
+# 構図スコア（シンプル版）
+def calculate_composition_score(rekognition_result, model_data)
+  labels = rekognition_result[:labels]
+  
+  # 主要な要素が明確に認識されているか
+  main_subject = labels.select { |l| l[:confidence] > 80 }.first(3)
+  
+  if main_subject.any?
+    # 主題の明確さでスコア決定
+    avg_confidence = main_subject.map { |l| l[:confidence] }.sum / main_subject.size.to_f
+    base_score = (avg_confidence * 0.8).round
+    
+    # 中央に配置されているか（Birdラベルがある場合）
+    if labels.any? { |l| l[:name].match?(/bird/i) && l[:confidence] > 70 }
+      base_score += 10
+    end
+    
+    [base_score, 100].min
+  else
+    40  # 主題が不明確
+  end
+end
+
+# 複雑さスコア（シンプル版）
+def calculate_complexity_score(rekognition_result)
+  labels = rekognition_result[:labels]
+  label_count = labels.count
+  
+  # ラベル数ベースの評価
+  case label_count
+  when 0..2
+    20   # シンプルすぎる
+  when 3..5
+    40   # 基本的
+  when 6..9
+    60   # 適度な複雑さ
+  when 10..15
+    80   # 豊富な要素
+  else
+    90   # 非常に複雑
+  end
+end
+
+# 完成度スコア（シンプル版）
+def calculate_completeness_score(rekognition_result)
+  labels = rekognition_result[:labels]
+  
+  # 高信頼度ラベルの数と割合
+  high_confidence_count = labels.count { |l| l[:confidence] > 85 }
+  very_high_confidence_count = labels.count { |l| l[:confidence] > 90 }
+  
+  # 基本スコア
+  score = 40
+  
+  # 高信頼度ラベルによる加点
+  score += high_confidence_count * 5
+  score += very_high_confidence_count * 3  # 追加ボーナス
+  
+  # アート作品として認識
+  if labels.any? { |l| l[:name].match?(/drawing|illustration|art|sketch/i) }
+    score += 10
+  end
+  
+  # 平均信頼度による調整
+  if labels.any?
+    avg_confidence = labels.map { |l| l[:confidence] }.sum / labels.size.to_f
+    if avg_confidence > 80
+      score += 10
+    elsif avg_confidence < 60
+      score -= 10
+    end
+  end
+  
+  [[score, 20].max, 95].min
+end
+
+# スコアレンジ判定（Oruby版）
+def determine_score_range(score, model_data)
+  case score
+  when 85..100
+    { 'label' => '素晴らしいOruby！プロ級の作品です！' }
+  when 70..84
+    { 'label' => '良いOruby！特徴がよく表現されています' }
+  when 50..69
+    { 'label' => 'まずまずのOruby。もう少し特徴を強調しましょう' }
+  when 30..49
+    { 'label' => 'Orubyの特徴が不足しています。基本を確認しましょう' }
+  else
+    { 'label' => 'Orubyらしさが足りません。鳥と宝石を意識して！' }
+  end
+end
+
 # エージェント1: 評価エージェント
-def run_evaluation_agent(rekognition_result, model_data, s3_url)
+def run_evaluation_agent(rekognition_result, model_data, s3_url, score_result = nil)
   puts "🎯 評価エージェント実行中..."
   
   prompt = build_evaluation_prompt(rekognition_result, model_data)
@@ -136,11 +312,12 @@ def run_evaluation_agent(rekognition_result, model_data, s3_url)
     
   rescue => e
     puts "⚠️  評価エージェントエラー: #{e.message}"
-    # フォールバック
+    # フォールバック（事前計算スコアを使用）
+    fallback_score = score_result ? score_result[:total_score] : 50
     {
-      score: calculate_basic_score(rekognition_result),
+      score: fallback_score,
       evaluation: "AIによる詳細評価は利用できませんでした",
-      breakdown: {}
+      breakdown: score_result ? score_result[:details] : {}
     }
   end
 end
@@ -182,129 +359,134 @@ def run_advice_agent(rekognition_result, evaluation_result, model_data)
   rescue => e
     puts "⚠️  アドバイスエージェントエラー: #{e.message}"
     # フォールバック
+    features = check_oruby_features(rekognition_result)
+    default_tips = []
+    default_tips << "鳥の特徴（くちばしや羽）を明確に描きましょう" unless features[:has_bird]
+    default_tips << "尻尾に宝石を追加してOrubyらしさを出しましょう" unless features[:has_gem]
+    default_tips << "もっと可愛らしい表情にしてみましょう" unless features[:is_cute]
+    
     {
-      advice: "絵をもっと楽しんで描いてみましょう！",
-      tips: ["色を増やしてみる", "キャラクターを大きく描く", "笑顔を追加する"]
+      advice: "Orubyの特徴をもっと強調してみましょう！",
+      tips: default_tips.any? ? default_tips : ["構図を大きく描く", "描き込みを増やす", "キャラクターの表情を豊かに"]
     }
   end
 end
 
-# 評価エージェント用プロンプト構築
+# 評価プロンプト（Oruby特化版）
 def build_evaluation_prompt(rekognition_result, model_data)
-  labels = rekognition_result[:labels].map { |l| "#{l[:name]} (#{l[:confidence]}%)" }.join(", ")
+  labels = rekognition_result[:labels]
+  label_count = labels.count
+  features = check_oruby_features(rekognition_result)
+  
+  # 事前計算スコア（参考値）
+  comp_score = calculate_composition_score(rekognition_result, model_data)
+  complex_score = calculate_complexity_score(rekognition_result)
+  complete_score = calculate_completeness_score(rekognition_result)
+  oruby_bonus = calculate_oruby_features_bonus(rekognition_result)
   
   <<~PROMPT
-    あなたは「Oruby」の絵を評価する専門家AIです。
-    Orubyは、Rubyプログラミング言語をモチーフにした親しみやすいキャラクターです。
+    「Oruby（おるびー）」の絵を評価してください。
+    Orubyは宝石（ルビー）を尻尾につけた可愛い鳥のキャラクターです。
     
-    以下の情報を基に、この絵を0-100点で評価してください。
+    【検出された要素】
+    #{labels.first(5).map { |l| "#{l[:name]}(#{l[:confidence].round}%)" }.join(", ")}
+    要素数: #{label_count}
     
-    【検出されたラベル】
-    #{labels}
+    【Oruby必須要素チェック】
+    - 鳥として認識: #{features[:has_bird] ? "○ あり" : "✗ なし（大幅減点）"}
+    - 宝石要素: #{features[:has_gem] ? "○ あり" : "△ なし（減点）"}
+    - 可愛さ: #{features[:is_cute] ? "○ あり" : "△ なし"}
     
-    【Orubyの理想的な特徴（黄金比）】
-    - 構図: キャラクターが画面の30-60%を占める
-    - 色使い: 暖色系（特に赤・オレンジ）を基調とし、3-7色使用
-    - スタイル: 丸みを帯びた形状、笑顔、ルビーモチーフ
-    - 技術: 線の滑らかさと一貫性
+    【評価配分】
+    1. 構図（40%）: キャラクターの配置、明確さ
+    2. 複雑さ（20%）: 適度な描き込み（要素数#{label_count}個）
+    3. 完成度（40%）: しっかり描かれているか
     
-    【重要度】
-    - 構図: 30%
-    - 色使い: 25%
-    - スタイル: 35%
-    - 技術品質: 10%
+    【参考スコア】
+    - 構図: #{comp_score}点
+    - 複雑さ: #{complex_score}点
+    - 完成度: #{complete_score}点
+    - Oruby特徴: #{oruby_bonus > 0 ? "+#{oruby_bonus}" : oruby_bonus}点
     
-    必ず以下のJSON形式で回答してください：
-    {
-      "score": 総合スコア（0-100の整数）,
-      "evaluation": "全体的な評価コメント（日本語で親しみやすく）",
-      "breakdown": {
-        "composition": 構図スコア,
-        "color": 色使いスコア,
-        "style": スタイルスコア,
-        "technical": 技術スコア
-      }
-    }
+    【重要】
+    - 鳥として認識されない場合は最高60点
+    - 宝石要素がない場合は最高80点
+    - 平均50点、85点以上は本当に優れた作品のみ
     
-    評価は建設的で励みになるものにしてください。
+    JSON形式のみで回答：
+    {"score": 総合点, "evaluation": "Orubyらしさを含めた評価コメント", "breakdown": {"composition": 点, "complexity": 点, "completeness": 点}}
   PROMPT
 end
 
-# アドバイスエージェント用プロンプト構築
+# アドバイスプロンプト（Oruby特化版）
 def build_advice_prompt(rekognition_result, evaluation_result, model_data)
+  features = check_oruby_features(rekognition_result)
+  score = evaluation_result[:score]
+  
+  missing_features = []
+  missing_features << "鳥の特徴（くちばしや羽）" unless features[:has_bird]
+  missing_features << "宝石（尻尾のアクセサリー）" unless features[:has_gem]
+  missing_features << "可愛らしさ" unless features[:is_cute]
+  
   <<~PROMPT
-    あなたは「Oruby」の絵の上達をサポートする優しいアートコーチAIです。
+    Orubyの絵の改善アドバイスをしてください。
     
     【現在の評価】
-    - 総合スコア: #{evaluation_result[:score]}点
-    - 評価: #{evaluation_result[:evaluation]}
-    - 詳細: #{evaluation_result[:breakdown].to_json}
+    スコア: #{score}点
+    不足要素: #{missing_features.any? ? missing_features.join("、") : "なし"}
     
-    【検出された要素】
-    #{rekognition_result[:labels].first(10).map { |l| l[:name] }.join(", ")}
+    【Orubyの特徴】
+    - 鳥のキャラクター（くちばし、羽が重要）
+    - 尻尾に宝石（ルビー）がついている
+    - 可愛らしい表情
     
-    この評価結果を踏まえて、絵を改善するための具体的なアドバイスを提供してください。
+    必須要素が欠けている場合は、それを最優先でアドバイスしてください。
+    白黒イラストなので、形やデザインでの表現方法を提案してください。
     
-    必ず以下のJSON形式で回答してください：
+    JSON形式で回答：
     {
-      "main_advice": "最も重要な改善ポイント（1-2文で簡潔に）",
+      "main_advice": "最も重要な改善点",
       "improvement_tips": [
         "具体的な改善方法1",
         "具体的な改善方法2",
         "具体的な改善方法3"
       ]
     }
-    
-    アドバイスは：
-    - 具体的で実践しやすいものに
-    - ポジティブで励みになるトーンで
-    - 初心者でも理解できる言葉で
-    - Orubyらしさ（Ruby言語のマスコット）を意識して
   PROMPT
 end
 
-# 基本的なスコア計算（フォールバック用）
-def calculate_basic_score(rekognition_result)
-  labels = rekognition_result[:labels]
-  
-  # キーワードに基づく簡易スコアリング
-  score = 50  # 基本スコア
-  
-  positive_keywords = ['drawing', 'art', 'illustration', 'cartoon', 'creative', 'colorful']
-  character_keywords = ['person', 'character', 'face', 'smile']
-  
-  labels.each do |label|
-    label_lower = label[:name].downcase
-    score += 5 if positive_keywords.any? { |kw| label_lower.include?(kw) }
-    score += 10 if character_keywords.any? { |kw| label_lower.include?(kw) }
-  end
-  
-  [score, 100].min
-end
-
-# Bedrockエラー時のフォールバック
-def fallback_to_basic_analysis(error_message)
+# Bedrockエラー時のフォールバック（改良版）
+def fallback_to_basic_analysis(error_message, rekognition_result = nil, model_data = nil)
   puts "⚠️  Bedrockが利用できないため、基本分析にフォールバック"
+  
+  # Rekognitionの結果があれば、それを使ってスコア計算
+  if rekognition_result
+    score_result = calculate_score(rekognition_result, model_data || {})
+    score = score_result[:total_score]
+    features = score_result[:oruby_features]
+    
+    advice = []
+    advice << "鳥の特徴をもっと明確に描きましょう" unless features[:has_bird]
+    advice << "尻尾に宝石を追加してOrubyらしさを出しましょう" unless features[:has_gem]
+    advice << "可愛らしい表情を意識しましょう" unless features[:is_cute]
+    advice << "構図を大きく、はっきりと描きましょう" if advice.empty?
+  else
+    score = 50
+    advice = ["絵を描き続けることが上達への近道です！"]
+  end
   
   {
     statusCode: 200,
     headers: default_headers,
     body: JSON.generate({
       message: "基本分析を実行しました（AI分析は一時的に利用できません）",
-      error_detail: error_message,
-      score: 65,
-      evaluation: "AIサービスが一時的に利用できないため、簡易評価を行いました",
-      advice: [
-        "絵を描き続けることが上達への近道です！",
-        "Orubyらしい赤色を使ってみましょう",
-        "笑顔のキャラクターは見る人を幸せにします"
-      ],
+      score: score,
+      evaluation: "Rekognitionベースの分析を行いました",
+      advice: advice,
       timestamp: Time.now.iso8601
     })
   }
 end
-
-# === 以下、既存のユーティリティ関数 ===
 
 def get_golden_ratio_model
   puts "📊 統計モデルを取得中..."
@@ -332,7 +514,7 @@ def analyze_with_rekognition(bucket, key)
       }
     },
     max_labels: 20,
-    min_confidence: 60
+    min_confidence: 45
   )
   
   {
