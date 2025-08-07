@@ -133,14 +133,14 @@ def calculate_score(rekognition_result, model_data)
   # 範囲制限
   total_score = [[total_score, 100].min, 10].max
 
-  # 平均60点になるように全体調整
-  # 基準点60からの偏差を計算
-  if total_score > 60
-    # 60点以上は上昇を緩やかに
-    total_score = 60 + ((total_score - 60) * 0.8).round
+  # 平均70点になるように全体調整
+  # 基準点70からの偏差を計算
+  if total_score > 70
+    # 70点以上は上昇を緩やかに
+    total_score = 70 + ((total_score - 70) * 0.9).round
   else
-    # 60点以下は下降を緩やかに
-    total_score = 60 - ((60 - total_score) * 0.8).round
+    # 70点以下は下降を緩やかに  
+    total_score = 70 - ((70 - total_score) * 0.85).round
   end
   
   {
@@ -160,9 +160,11 @@ def check_oruby_features(rekognition_result)
       l[:name].match?(/bird|beak|wing|feather|avian|animal|character|mascot/i) ||
       (l[:name].match?(/drawing|sketch|illustration|art/i) && labels.size > 3)
     },
-    # Shapeも含めて判定
+    # 幾何学図形全般を宝石として判定（白黒線画対応）
     has_gem: labels.any? { |l| 
-      l[:name].match?(/gem|jewel|jewelry|crystal|stone|ornament|accessory|diamond|shape|triangle/i)
+      l[:name].match?(/gem|jewel|jewelry|crystal|stone|ornament|accessory|diamond|shape|triangle|polygon|geometric|rhombus|pattern|design|symbol|logo|icon|decoration/i) ||
+      # 図形カテゴリーも宝石として判定
+      (l[:categories] && l[:categories].any? { |c| c.match?(/shape|geometric|pattern/i) })
     },
     # DrawingやArtも可愛さとして判定
     is_cute: labels.any? { |l| 
@@ -184,18 +186,18 @@ def calculate_oruby_features_bonus(rekognition_result)
   
   # 鳥要素（必須に近い）
   if features[:has_bird]
-    bonus += 5  # 10→5
+    bonus += 8  # 鳥要素を高く評価
   elsif labels.any? { |l| l[:name].match?(/animal|character|mascot/i) }
-    bonus += 2  # 5→2
+    bonus += 4  # 動物として認識
   else
-    bonus -= 10  # 鳥として認識されないと減点
+    bonus -= 10  # 鳥として認識されないと減点（緩和）
   end
   
-  # 宝石要素（重要）
-  if features[:has_gem] || labels.any? { |l| l[:name].match?(/shape|geometric/i) }
-    bonus += 3  # 5→3
+  # 宝石要素（重要）- 幾何学図形も含める
+  if features[:has_gem]
+    bonus += 8  # 宝石要素を高く評価
   else
-    bonus -= 5  # 宝石がないと減点
+    bonus -= 3  # 宝石がないと減点（緩和）
   end
   
   # シンプルさは加点しない（基準に含まれる）
@@ -207,19 +209,19 @@ def calculate_composition_score(rekognition_result, model_data)
   labels = rekognition_result[:labels]
   
   # 主要な要素が明確に認識されているか
-  main_subject = labels.select { |l| l[:confidence] > 75 }.first(3)
+  main_subject = labels.select { |l| l[:confidence] > 70 }.first(3)
   
   if main_subject.any?
-    # 主題の明確さでスコア決定（厳しく）
+    # 主題の明確さでスコア決定（緩和）
     avg_confidence = main_subject.map { |l| l[:confidence] }.sum / main_subject.size.to_f
-    base_score = ((avg_confidence - 50) * 1.2).round  # 基準を厳しく
+    base_score = ((avg_confidence - 40) * 1.5).round  # 基準を緩和
     
     # 中央配置ボーナス（控えめ）
     if labels.any? { |l| l[:name].match?(/bird|animal|character/i) && l[:confidence] > 70 }
       base_score += 5  # 10→5
     end
     
-    [base_score, 85].min  # 最大85点
+    [base_score, 90].min  # 最大90点
   else
     30  # 40→30（主題が不明確）
   end
@@ -231,55 +233,55 @@ def calculate_complexity_score(rekognition_result)
   
   # 線画用の基礎点を下げる
   base_score = if labels.any? { |l| l[:name].match?(/drawing|sketch|illustration|doodle/i) }
-    30  # 60→30
+    45  # 基礎点を上げる
   else
-    0
+    20
   end
   
-  # ラベル数による加点（厳しく）
+  # ラベル数による加点（緩和）
   case label_count
   when 0..2
-    base_score + 10  # 最低限
+    base_score + 15  # 最低限
   when 3..5
-    base_score + 20  # 基本的
+    base_score + 25  # 基本的
   when 6..9
-    base_score + 30  # 適切
+    base_score + 35  # 適切
   when 10..15
-    base_score + 25  # やや多い
+    base_score + 30  # やや多い
   else
-    base_score + 20  # 多すぎ
+    base_score + 25  # 多すぎ
   end
 end
 
 def calculate_completeness_score(rekognition_result)
   labels = rekognition_result[:labels]
   
-  # 基本スコアを下げる
-  score = 40  # 60→40
+  # 基本スコアを上げる
+  score = 50  # 基本スコアを上げる
   
-  # 線画として認識されたら少し加点
+  # 線画として認識されたら加点
   if labels.any? { |l| l[:name].match?(/drawing|illustration|art|sketch|doodle/i) }
-    score += 10  # 20→10
+    score += 15  # 加点を増やす
   end
   
-  # 高信頼度ラベルによる加点（厳しく）
-  high_confidence_count = labels.count { |l| l[:confidence] > 80 }  # 75→80
-  very_high_confidence_count = labels.count { |l| l[:confidence] > 90 }
+  # 高信頼度ラベルによる加点（緩和）
+  high_confidence_count = labels.count { |l| l[:confidence] > 75 }  # 閾値を下げる
+  very_high_confidence_count = labels.count { |l| l[:confidence] > 85 }
   
-  score += high_confidence_count * 2  # 3→2
+  score += high_confidence_count * 3  # 加点を増やす
   score += very_high_confidence_count * 2  # 追加ボーナス
   
   # 平均信頼度による調整
   if labels.any?
     avg_confidence = labels.map { |l| l[:confidence] }.sum / labels.size.to_f
-    if avg_confidence > 85  # 70→85（厳しく）
+    if avg_confidence > 80  # 閾値を下げる
       score += 10
-    elsif avg_confidence < 70
+    elsif avg_confidence < 65
       score -= 5
     end
   end
   
-  [[score, 20].max, 90].min  # 最大値も90に制限
+  [[score, 30].max, 95].min  # 最大値を95に上げる
 end
 
 # スコアレンジ判定（Oruby版）
@@ -417,7 +419,8 @@ def build_evaluation_prompt(rekognition_result, model_data)
     
     【重要な評価方針】
     - これは白黒の線画作品です
-    - 厳格な評価基準を適用してください
+    - ダイヤモンド型や幾何学図形は「宝石」として認識してください
+    - 体の横についている四角形や三角形も「宝石」としてください
     - 必須要素：くちばし、丸い体、ダイヤモンド型の装飾
     
     【検出された要素】
@@ -425,20 +428,22 @@ def build_evaluation_prompt(rekognition_result, model_data)
     
     【評価配分】
     1. 構図（30%）: 中央配置、バランス
-    2. 必須要素（40%）: くちばし、体、宝石の明確な表現
+    2. 必須要素（40%）: くちばし、体、宝石（幾何学図形）の明確な表現
     3. 完成度（30%）: 全体的なまとまりと仕上がり
     
-    【採点基準（厳格）】
-    - 平均60点を基準とする
-    - 70点以上：必須要素がすべて明確に表現されている
-    - 80点以上：構図・バランスも優れている
-    - 90点以上：ほぼ完璧な作品
+    【採点基準】
+    - 平均70点を基準とする
+    - 80点以上：必須要素がすべて明確に表現されている
+    - 90点以上：構図・バランスも優れている
+    - 95点以上：ほぼ完璧な作品
     - 100点：理想的な見本レベルのみ
     
     【減点要素】
-    - 必須要素の欠如：各-15点
-    - バランスの悪さ：-10点
-    - 不明瞭な表現：-10点
+    - 必須要素の欠如：各-10点
+    - バランスの悪さ：-5点
+    - 不明瞭な表現：-5点
+    
+    ※幾何学図形（Shape, Triangle, Diamond, Polygon等）が検出された場合、それは宝石を表していることに注意してください
     
     JSON形式のみで回答：
     {"score": 総合点, "evaluation": "評価コメント", "breakdown": {"composition": 点, "essential_features": 点, "completeness": 点}}
@@ -448,26 +453,41 @@ end
 # アドバイスプロンプト（Oruby特化版）
 def build_advice_prompt(rekognition_result, evaluation_result, model_data)
   features = check_oruby_features(rekognition_result)
+  labels = rekognition_result[:labels]
   score = evaluation_result[:score]
   
   missing_features = []
   missing_features << "鳥の特徴（くちばしや羽）" unless features[:has_bird]
-  missing_features << "宝石（尻尾のアクセサリー）" unless features[:has_gem]
+  # 幾何学図形があれば宝石としてカウントしない
+  unless features[:has_gem]
+    missing_features << "宝石（尻尾のアクセサリー）"
+  end
   missing_features << "可愛らしさ" unless features[:is_cute]
+  
+  # 幾何学図形の存在を確認
+  has_geometric_shape = labels.any? { |l| 
+    l[:name].match?(/shape|triangle|diamond|polygon|geometric|pattern|design|symbol/i)
+  }
   
   <<~PROMPT
     Orubyの絵の改善アドバイスをしてください。
     
     【現在の評価】
     スコア: #{score}点
-    不足要素: #{missing_features.any? ? missing_features.join("、") : "なし"}
+    検出された要素: #{labels.first(3).map { |l| l[:name] }.join(", ")}
+    #{has_geometric_shape ? "※幾何学図形が検出されています（宝石として認識）" : ""}
     
     【Orubyの特徴】
     - 鳥のキャラクター（くちばし、羽が重要）
     - 尻尾に宝石（ルビー）がついている
     - 可愛らしい表情
     
-    必須要素が欠けている場合は、それを最優先でアドバイスしてください。
+    【重要】
+    - 白黒線画では、ダイヤモンド型や三角形の幾何学図形が宝石を表します
+    - Shape, Triangle, Diamond, Polygon等が検出されている場合、宝石はすでに描かれています
+    - 宝石がすでにある場合は、「宝石を追加しましょう」というアドバイスは不要です
+    
+    必須要素が欠けている場合のみ、それを最優先でアドバイスしてください。
     白黒イラストなので、形やデザインでの表現方法を提案してください。
     
     JSON形式で回答：
