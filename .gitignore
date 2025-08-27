@@ -128,3 +128,5 @@ temp/
 
 # GitHub Actions
 !.github/workflows/
+
+.serena/
